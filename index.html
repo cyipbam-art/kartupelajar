@@ -100,6 +100,7 @@ input[type=text]:focus,input[type=password]:focus,input[type=number]:focus,input
 }
 @media(max-width:760px) and (max-height:560px){.lp svg{display:none}.lp{padding-bottom:48px}}
 .bt.r{background:linear-gradient(135deg,#ef4444,#f97316);box-shadow:0 6px 16px #ef444433}.bt.r:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+#toast{max-width:min(92vw,560px);width:max-content;text-align:center;border-radius:18px;line-height:1.4}
 </style>
 
 <div id="app">
@@ -116,8 +117,8 @@ input[type=text]:focus,input[type=password]:focus,input[type=number]:focus,input
 //<![CDATA[
 // KONFIGURASI APLIKASI
 // UBAH IS_PREVIEW KE false JIKA AKAN DI-DEPLOY KE BLOGGER
-const IS_PREVIEW = false; // Set default true untuk Canvas
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwG0z_X2Mm2wu7m_t8rBzmJewqNSb4h6eQ4ERIgrfuzwrlXuYHetSy6jkZHYYHESNWI/exec";
+const IS_PREVIEW = true; // Set default true untuk Canvas
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyLMUssCS4ssC6J3nNi_AZ1bLObDTMHEuSKg6Ho5QhY-mnSZLnhLulOj4Y_fa_SKaQ5/exec";
 if(!document.querySelector('meta[name=viewport]')){const m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1,viewport-fit=cover';document.head.appendChild(m)}
 document.body.appendChild(document.getElementById('app'));document.body.appendChild(document.getElementById('printWrap'));
 
@@ -128,7 +129,7 @@ let S={user:null,token:'',siswa:[],fields:[],settings:{},tpl:null},side='depan',
 const FONTS=['Poppins','Arial','Verdana','Tahoma','Times New Roman','Georgia','Courier New','Montserrat','Roboto','Open Sans','Lato','Raleway','Oswald'];
 const FL=()=>ST.concat(S.fields.map(f=>[f.key,f.label,f.tipe]));
 const H=h=>{$('#main').innerHTML=h};
-const toast=m=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;setTimeout(()=>t.style.opacity=0,2600)};
+const toast=(m,ms)=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.opacity=0,ms||2600)};
 const modal=h=>{$('#modal').innerHTML='<div class="mb" onclick="if(event.target==this)closeM()"><div class="md">'+h+'</div></div>';$('#modal').hidden=false};
 const closeM=()=>{$('#modal').hidden=true};
 
@@ -150,7 +151,9 @@ function local(a,d){const D=DB;
  if(a=='upload')return{ok:1,url:d.data};
  return{ok:1}}
 async function api(a,d){d=d||{};if(IS_PREVIEW)return local(a,d);
- try{const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({a:a,d:d,t:S.token})});return await r.json()}catch(e){toast('Gagal terhubung ke server');return{ok:0,msg:String(e)}}}
+ try{const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({a:a,d:d,t:S.token})}),tx=await r.text();
+  try{return JSON.parse(tx)}catch(e){const m='Server membalas halaman error, bukan data. Periksa deployment GAS (Execute as: Me, Akses: Anyone) lalu deploy versi baru. ['+tx.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,100)+']';if(a!='upload')toast(m,7000);return{ok:0,msg:m}}}
+ catch(e){const m='Tidak bisa terhubung ke server GAS ('+e.message+'). Cek koneksi, GAS_URL, atau ukuran file terlalu besar.';if(a!='upload')toast(m,7000);return{ok:0,msg:m}}}
 
 /* ===== LOGIN & NAVIGASI ===== */
 $('#hint').innerHTML=IS_PREVIEW?'MODE PREVIEW — admin / edudigital atau operator / edudigital':'Masuk dengan akun Anda';
@@ -189,11 +192,15 @@ function go(p){document.querySelectorAll('.nv').forEach(n=>n.classList.toggle('o
 /* ===== UTIL GAMBAR ===== */
 const rd=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result);x.readAsDataURL(f)});
 const ld=u=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=u});
-async function proc(f,W,H2,mime,crop){const i=await ld(await rd(f)),c=document.createElement('canvas');
- if(crop){c.width=W;c.height=H2;const r=W/H2;let sw=i.width,sh=i.height;if(sw/sh>r)sw=sh*r;else sh=sw/r;c.getContext('2d').drawImage(i,(i.width-sw)/2,(i.height-sh)*0.25,sw,sh,0,0,W,H2)}
- else{const k=Math.min(1,W/i.width);c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height)}
- return c.toDataURL(mime,.88)}
-async function up(name,data){const r=await api('upload',{name:name,data:data});if(!r.ok){toast('Upload gagal');return''}return r.url}
+async function proc(f,W,H2,mime,crop){const i=await ld(await rd(f)),c=document.createElement('canvas'),jp=mime=='image/jpeg';
+ const dr=(w,h,fn)=>{c.width=w;c.height=h;const x=c.getContext('2d');if(jp){x.fillStyle='#fff';x.fillRect(0,0,w,h)}fn(x)};
+ if(crop){const q=W/H2;let sw=i.width,sh=i.height;if(sw/sh>q)sw=sh*q;else sh=sw/q;dr(W,H2,x=>x.drawImage(i,(i.width-sw)/2,(i.height-sh)*0.25,sw,sh,0,0,W,H2));return c.toDataURL(mime,.88)}
+ let k=Math.min(1,W/i.width),qu=.9,d='';
+ for(let n=0;n<6;n++){dr(Math.round(i.width*k),Math.round(i.height*k),x=>x.drawImage(i,0,0,c.width,c.height));d=c.toDataURL(mime,qu);if(d.length<1.6e6)break;k*=.8;qu=Math.max(.6,qu-.08)}
+ return d}
+async function up(name,data){const r=await api('upload',{name:name,data:data});if(!r.ok){toast('Upload gagal: '+(r.msg||'tanpa pesan dari server')+' (ukuran '+Math.round(data.length/1024)+' KB)',9000);return''}
+ UPW=(r.shared&&r.shared!='public')?'Tersimpan, tetapi Drive sekolah membatasi berbagi publik ('+r.shared+'): gambar mungkin tidak tampil untuk semua pengguna. Hubungi admin Google Workspace sekolah.':'';if(UPW)toast(UPW,9000);return r.url}
+let UPW='';
 
 /* ===== QR & RENDER KARTU ===== */
 const QC={};
@@ -243,7 +250,7 @@ async function dkGo(){const k=$('#dk').value,L=dkList(),a=dkAll(),bk=$('#db').ch
 
 /* ===== IMPORT EXCEL ===== */
 let XR=[];
-P.imp=()=>H('<div class="cd"><h3>Import Data Siswa dari Excel</h3><p class="mu">Unduh template, isi data, lalu upload. Kolom field kustom otomatis ikut.</p><button class="bt o" onclick="tplX()">⬇ Unduh Template</button><br><br><input type="file" accept=".xlsx,.xls,.csv" onchange="readX(this.files[0])"><div id="xr"></div></div>');
+P.imp=()=>H('<div class="cd"><h3>Import Data Siswa dari Excel</h3><p class="mu">Unduh template, isi data, lalu upload. Kolom field kustom otomatis ikut.</p><button class="bt o" onclick="tplX()">⬇ Unduh Template</button><br><br><input type="file" accept=".xlsx,.xls,.csv" onchange="readX(this.files[0]);this.value=\'\'"><div id="xr"></div></div>');
 function tplX(){const hd=FL().map(f=>f[1]),ws=XLSX.utils.aoa_to_sheet([hd]);for(let q=1;q<=500;q++)hd.forEach((_,c)=>{ws[XLSX.utils.encode_cell({r:q,c:c})]={t:'s',v:'',z:'@'}});ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:500,c:hd.length-1}});ws['!cols']=hd.map(()=>({wch:18}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Siswa');XLSX.writeFile(wb,'template-siswa.xlsx')}
 async function readX(f){if(!f)return;const wb=XLSX.read(await f.arrayBuffer()),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:'',raw:false,dateNF:'yyyy-mm-dd'}),mp={};
  FL().forEach(x=>{mp[nk(x[1])]=x[0];mp[nk(x[0])]=x[0]});
@@ -252,7 +259,7 @@ async function readX(f){if(!f)return;const wb=XLSX.read(await f.arrayBuffer()),r
 async function saveX(){for(let i=0;i<XR.length;i+=100){$('#xr').innerHTML='Menyimpan '+Math.min(i+100,XR.length)+'/'+XR.length+'...';await api('saveSiswa',{rows:XR.slice(i,i+100)})}await load();toast('Import selesai');go('siswa')}
 
 /* ===== FOTO SISWA (otomatis 2x3) ===== */
-P.foto=()=>H('<div class="cd"><h3>Upload Foto Massal</h3><p class="mu">Nama file = NISN, NIS, atau Nama Lengkap (cth. 0051234567.jpg atau Erlangga Prajnadhika Kumara.jpg). Foto otomatis di-crop ke rasio 2:3 (400×600 px).</p><input type="file" multiple accept="image/*" onchange="doFoto(this.files)"><p id="fr"></p></div>');
+P.foto=()=>H('<div class="cd"><h3>Upload Foto Massal</h3><p class="mu">Nama file = NISN, NIS, atau Nama Lengkap (cth. 0051234567.jpg atau Erlangga Prajnadhika Kumara.jpg). Foto otomatis di-crop ke rasio 2:3 (400×600 px).</p><input type="file" multiple accept="image/*" onchange="doFoto([...this.files]);this.value=\'\'"><p id="fr"></p></div>');
 function matchS(fn){const b=nk(fn.replace(/\.[^.]+$/,'')),A=[s=>s.nisn,s=>s.nis,s=>s.nama];for(const g of A){const m=S.siswa.filter(s=>nk(g(s))==b);if(m.length==1)return m[0]}return null}
 async function bulk(fs,K){const el=K?'#qr':'#fr',pre=K?'qr_':'',ext=K?'.png':'.jpg',fld=K?'qr_url':'foto_url',miss=[],ok=[],rows=[];
  [...fs].forEach(f=>{const s=matchS(f.name);s?ok.push({f:f,s:s}):miss.push(f.name)});$(el).innerHTML='<div id="pgb"></div>';
@@ -263,19 +270,19 @@ function doFoto(fs){return bulk(fs,0)}
 function doQR(fs){return bulk(fs,1)}
 
 /* ===== QR CODE ===== */
-P.qr=()=>{const s=S.settings;H('<div class="cd"><h3>Pengaturan QR Code</h3><label><input type="radio" name="qm" value="auto" '+(s.qr_mode!='upload'?'checked':'')+'> <b>Mode A — Generate otomatis</b></label><br><label>Format isi QR (placeholder: {nisn} {nis} {nama} {kelas})<input type="text" id="qf" value="'+esc(s.qr_format||'{nisn}')+'"></label><label><input type="radio" name="qm" value="upload" '+(s.qr_mode=='upload'?'checked':'')+'> <b>Mode B — Upload QR dari webapp absensi</b></label><br><label>Siswa tanpa QR upload<select id="qb"><option value="ya" '+(s.qr_fallback!='tidak'?'selected':'')+'>Pakai QR otomatis</option><option value="tidak" '+(s.qr_fallback=='tidak'?'selected':'')+'>Kosongkan + peringatan</option></select></label><button class="bt" onclick="saveQR()">Simpan Pengaturan</button></div><div class="cd"><h3>Upload QR Massal (Mode B)</h3><p class="mu">Nama file = NISN, NIS, atau Nama Lengkap (cth. 0051234567.png). Bisa pilih banyak file sekaligus.</p><input type="file" multiple accept="image/*" onchange="doQR(this.files)"><p id="qr"></p></div><div class="cd"><h3>Pratinjau</h3><div class="tb">'+S.siswa.slice(0,6).map(x=>{const q=qrSrc(x);return '<div style="text-align:center;flex:none"><img src="'+q+'" width="80" height="80"><br><span class="mu">'+esc(x.nama)+'</span></div>'}).join('')+'</div></div>')};
+P.qr=()=>{const s=S.settings;H('<div class="cd"><h3>Pengaturan QR Code</h3><label><input type="radio" name="qm" value="auto" '+(s.qr_mode!='upload'?'checked':'')+'> <b>Mode A — Generate otomatis</b></label><br><label>Format isi QR (placeholder: {nisn} {nis} {nama} {kelas})<input type="text" id="qf" value="'+esc(s.qr_format||'{nisn}')+'"></label><label><input type="radio" name="qm" value="upload" '+(s.qr_mode=='upload'?'checked':'')+'> <b>Mode B — Upload QR dari webapp absensi</b></label><br><label>Siswa tanpa QR upload<select id="qb"><option value="ya" '+(s.qr_fallback!='tidak'?'selected':'')+'>Pakai QR otomatis</option><option value="tidak" '+(s.qr_fallback=='tidak'?'selected':'')+'>Kosongkan + peringatan</option></select></label><button class="bt" onclick="saveQR()">Simpan Pengaturan</button></div><div class="cd"><h3>Upload QR Massal (Mode B)</h3><p class="mu">Nama file = NISN, NIS, atau Nama Lengkap (cth. 0051234567.png). Bisa pilih banyak file sekaligus.</p><input type="file" multiple accept="image/*" onchange="doQR([...this.files]);this.value=\'\'"><p id="qr"></p></div><div class="cd"><h3>Pratinjau</h3><div class="tb">'+S.siswa.slice(0,6).map(x=>{const q=qrSrc(x);return '<div style="text-align:center;flex:none"><img src="'+q+'" width="80" height="80"><br><span class="mu">'+esc(x.nama)+'</span></div>'}).join('')+'</div></div>')};
 async function saveQR(){const m=document.querySelector('[name=qm]:checked').value;await api('saveSettings',{qr_mode:m,qr_format:$('#qf').value||'{nisn}',qr_fallback:$('#qb').value});await load();toast('Pengaturan QR disimpan');P.qr()}
 /* ===== PENGATURAN: IDENTITAS ===== */
 P.set=()=>{const s=S.settings,f=(k,l,ty)=>'<label>'+l+'<input type="'+(ty||'text')+'" id="s_'+k+'" value="'+esc(s[k]||(ty=='color'?(k=='warna1'?'#0A63F0':'#2ED8A3'):''))+'"></label>',
- im=(k,l)=>'<div class="cd" style="box-shadow:none;background:#F1F8FF"><b>'+l+'</b><br>'+(s[k]?'<img src="'+s[k]+'" style="max-height:64px;background:#fff;border-radius:10px;margin:6px 0" onerror="this.style.display=\'none\'"><br>':'')+'<label>Link Google Drive (Bagikan → "Siapa saja yang memiliki link")<input type="text" id="l_'+k+'" value="'+esc(s[k+'_link']||'')+'" placeholder="https://drive.google.com/file/d/.../view"></label><button class="bt" onclick="saveLink(\''+k+'\')">Simpan Link</button><label class="bt o" style="display:inline-block">Atau upload file<input type="file" accept="image/*" hidden onchange="setImg(\''+k+'\',this.files[0])"></label></div>';
+ im=(k,l)=>'<div class="cd" style="box-shadow:none;background:#F1F8FF"><b>'+l+'</b><br>'+(s[k]?'<img src="'+s[k]+'" style="max-height:64px;background:#fff;border-radius:10px;margin:6px 0" onerror="this.style.display=\'none\'"><br>':'')+'<label>Link Google Drive (Bagikan → "Siapa saja yang memiliki link")<input type="text" id="l_'+k+'" value="'+esc(s[k+'_link']||'')+'" placeholder="https://drive.google.com/file/d/.../view"></label><button class="bt" onclick="saveLink(\''+k+'\')">Simpan Link</button><label class="bt o" style="display:inline-block">Atau upload file<input type="file" accept="image/*" hidden onchange="setImg(\''+k+'\',this.files[0]);this.value=\'\'"></label></div>';
  H('<div class="cd"><h3>Identitas Aplikasi & Sekolah</h3><div class="fg">'+f('nama_aplikasi','Nama Aplikasi')+f('tagline','Tagline (halaman login)')+f('nama_sekolah','Nama Sekolah')+f('alamat_sekolah','Alamat Sekolah')+f('tahun_ajaran','Tahun Ajaran')+f('nama_kepsek','Nama Kepala Sekolah')+f('nip_kepsek','NIP Kepala Sekolah')+f('warna1','Warna Utama','color')+f('warna2','Warna Aksen','color')+'</div><button class="bt" onclick="saveSet()">Simpan Identitas</button></div><div class="cd"><h3>Logo, Kop & Tanda Tangan</h3>'+im('logo','Logo Sekolah / Aplikasi')+im('kop','Kop Kartu')+im('ttd','TTD Kepala Sekolah (PNG transparan)')+'<p class="mu">Placeholder di template kartu: {nama_aplikasi} {nama_sekolah} {alamat_sekolah} {nama_kepsek} {nip_kepsek} {tahun_ajaran}</p></div>')};
 async function saveSet(){const o={};['nama_aplikasi','tagline','nama_sekolah','alamat_sekolah','tahun_ajaran','nama_kepsek','nip_kepsek','warna1','warna2'].forEach(k=>o[k]=$('#s_'+k).value);await api('saveSettings',o);await load();applyBrand();toast('Identitas tersimpan')}
 async function saveLink(k){const l=$('#l_'+k).value.trim(),u=dUrl(l);if(l&&!u)return toast('Link tidak valid');const o={};o[k]=u;o[k+'_link']=l;await api('saveSettings',o);await load();applyBrand();P.set();toast('Tersimpan')}
-async function setImg(k,f){if(!f)return;const png=k!='kop',u=await up(k+(png?'.png':'.jpg'),await proc(f,1000,400,png?'image/png':'image/jpeg',0));if(!u)return;const o={};o[k]=u;o[k+'_link']='';await api('saveSettings',o);await load();applyBrand();P.set();toast('Tersimpan')}
+async function setImg(k,f){if(!f)return;const png=k!='kop',u=await up(k+(png?'.png':'.jpg'),await proc(f,1000,400,png?'image/png':'image/jpeg',0));if(!u)return;const o={};o[k]=u;o[k+'_link']='';await api('saveSettings',o);await load();applyBrand();P.set();toast(UPW||'Tersimpan',UPW?9000:2600)}
 
 /* ===== TEMPLATE KARTU + EDITOR ===== */
 const T=()=>S.tpl[side].els;
-P.tpl=()=>{sel=-1;H('<div class="cd"><div class="tb"><button class="bt '+(side=='depan'?'':'o')+'" onclick="side=\'depan\';P.tpl()">Kartu Depan</button><button class="bt '+(side=='belakang'?'':'o')+'" onclick="side=\'belakang\';P.tpl()">Kartu Belakang</button></div><div class="ed"><div><div id="edBox"></div><p class="mu">Ukuran 86 × 55 mm. Tarik elemen untuk menggeser.</p></div><div><b>+ Tambah Elemen</b><div>'+[['text','Teks'],['field','Data'],['photo','Foto'],['qr','QR'],['img','Gambar'],['line','Garis']].map(x=>'<button class="bt o" onclick="addE(\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div><div id="props" style="margin-top:12px"></div></div></div><label>Latar template (PNG/JPG)<input type="file" accept="image/*" onchange="setBg(this.files[0])"></label><button class="bt o" onclick="S.tpl[side].bg=\'\';edDraw()">Hapus Latar</button><button class="bt g" onclick="saveTpl()">💾 Simpan Template</button></div>'+fldBox());
+P.tpl=()=>{sel=-1;H('<div class="cd"><div class="tb"><button class="bt '+(side=='depan'?'':'o')+'" onclick="side=\'depan\';P.tpl()">Kartu Depan</button><button class="bt '+(side=='belakang'?'':'o')+'" onclick="side=\'belakang\';P.tpl()">Kartu Belakang</button></div><div class="ed"><div><div id="edBox"></div><p class="mu">Ukuran 86 × 55 mm. Tarik elemen untuk menggeser.</p></div><div><b>+ Tambah Elemen</b><div>'+[['text','Teks'],['field','Data'],['photo','Foto'],['qr','QR'],['img','Gambar'],['line','Garis']].map(x=>'<button class="bt o" onclick="addE(\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div><div id="props" style="margin-top:12px"></div></div></div><label>Latar template (PNG/JPG)<input type="file" accept="image/*" onchange="setBg(this.files[0]);this.value=\'\'"></label><button class="bt o" onclick="S.tpl[side].bg=\'\';edDraw()">Hapus Latar</button><button class="bt g" onclick="saveTpl()">💾 Simpan Template</button></div>'+fldBox());
  $('#edBox').onpointerdown=ev=>{const el=ev.target.closest('.el');if(!el)return;sel=+el.dataset.i;edDraw();props();const e=T()[sel],r=$('#edBox .card').getBoundingClientRect(),k=86/r.width,sx=ev.clientX,sy=ev.clientY,ox=e.x,oy=e.y;
   const mv=m=>{e.x=+(ox+(m.clientX-sx)*k).toFixed(1);e.y=+(oy+(m.clientY-sy)*k).toFixed(1);edDraw()},u=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',u);props()};addEventListener('pointermove',mv);addEventListener('pointerup',u)};
  edDraw();props()};
@@ -287,7 +294,7 @@ function props(){const e=T()[sel],p=$('#props');if(!e){p.innerHTML=layers()+'<p 
  if(e.t=='text'||e.t=='field')x+='<label><input type="checkbox" '+(e.b?'checked':'')+' onchange="pe(\'b\',this.checked?1:0)"> Tebal</label> <label><input type="checkbox" '+(e.up?'checked':'')+' onchange="pe(\'up\',this.checked?1:0)"> KAPITAL</label><select onchange="pe(\'a\',this.value)">'+['left','center','right'].map(a=>'<option value="'+a+'" '+((e.a||'left')==a?'selected':'')+'>Rata '+a+'</option>').join('')+'</select>';
  if(e.t=='text')x+='<label>Teks (boleh {nama_sekolah}, {nama_kepsek}, {nama})<input type="text" value="'+esc(e.v)+'" oninput="pe(\'v\',this.value)"></label>';
  if(e.t=='field')x+='<label>Data<select onchange="pe(\'src\',this.value)">'+FV().map(f=>'<option value="'+f[0]+'" '+(f[0]==e.src?'selected':'')+'>'+esc(f[1])+'</option>').join('')+'</select></label><label>Label (kosongkan jika tanpa label)<input type="text" value="'+esc(e.l||'')+'" oninput="pe(\'l\',this.value)"></label>';
- if(e.t=='img')x+='<label>Sumber<select onchange="pe(\'src\',this.value)"><option value="kop" '+(e.src=='kop'?'selected':'')+'>Kop sekolah</option><option value="logo" '+(e.src=='logo'?'selected':'')+'>Logo sekolah</option><option value="ttd" '+(e.src=='ttd'?'selected':'')+'>TTD Kepsek</option>'+(e.src!='kop'&&e.src!='ttd'&&e.src!='logo'?'<option selected>Gambar kustom</option>':'')+'</select></label><input type="file" accept="image/*" onchange="imgEl(this.files[0])">';
+ if(e.t=='img')x+='<label>Sumber<select onchange="pe(\'src\',this.value)"><option value="kop" '+(e.src=='kop'?'selected':'')+'>Kop sekolah</option><option value="logo" '+(e.src=='logo'?'selected':'')+'>Logo sekolah</option><option value="ttd" '+(e.src=='ttd'?'selected':'')+'>TTD Kepsek</option>'+(e.src!='kop'&&e.src!='ttd'&&e.src!='logo'?'<option selected>Gambar kustom</option>':'')+'</select></label><input type="file" accept="image/*" onchange="imgEl(this.files[0]);this.value=\'\'">';
  if(e.t=='field'){if(e.lw==null)e.lw=15;if(e.cg==null)e.cg=3}
  if(e.t=='text'||e.t=='field')x+='<label>Jenis Font<select onchange="pe(\'ff\',this.value)">'+FONTS.map(f=>'<option '+((e.ff||'Poppins')==f?'selected':'')+'>'+f+'</option>').join('')+'</select></label>';
  if(e.t=='field')x+='<div class="fg">'+n('lw','Lebar kolom label / jarak ke titik dua (mm)')+n('cg','Jarak titik dua ke isi (mm)')+'</div><label>Jarak antar baris (mm)<input type="number" step=".5" id="ls" value="5"></label><button class="bt g" onclick="rapikan()">✨ Rapikan semua Data</button><p class="mu">Menyamakan posisi, font, dan kolom titik dua semua elemen Data mengikuti elemen yang dipilih.</p>';
